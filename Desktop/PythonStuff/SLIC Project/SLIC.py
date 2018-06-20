@@ -241,8 +241,10 @@ class SLIC(object):
 
             # Set s keeps track of pixels not connected to center
             if clusterCenterPixel in pixelSet:
+
                 bfsQueue.append(clusterCenterPixel)
                 pixelSet.remove(clusterCenterPixel)
+
             elif pixelSet:
                 bfsQueue.append(next(iter(pixelSet)))
 
@@ -262,6 +264,7 @@ class SLIC(object):
 
                 done = False
                 bfsQueue.append(next(iter(pixelSet)))
+                visitedPixels = set()
 
                 while (bfsQueue):
 
@@ -282,21 +285,23 @@ class SLIC(object):
                                 done = True
                                 break
 
-                            else:
+                            elif _p not in visitedPixels:
                                 bfsQueue.append(_p)
+                                visitedPixels.add(_p)
 
                     if done:
                         pixelSet.remove(pixel)
                         bfsQueue.clear()
 
-    def saveImage(self, path, isBordered):
+    def saveImage(self, path, isBordered = False, hasCenters = False):
 
         """
         Saves segmented image, along with borders and center indications, into path
 
         Input:
             path -       (String) File path/name for save location for image 
-            isBordered - (Bool)  Boolean value representing if output will have borders around clusters
+            isBordered - (Bool)   Boolean value representing if output will have borders around clusters
+            hasCenters - (Bool)   Boolean value representing if output will have centers indicated
         """
 
         #################
@@ -377,7 +382,8 @@ class SLIC(object):
                         self.imageArr[py][px][1] = cluster.a
                         self.imageArr[py][px][2] = cluster.b
 
-                indicateClusterCenter(cluster.x, cluster.y)
+                if hasCenters:
+                    indicateClusterCenter(cluster.x, cluster.y)
 
         else:
 
@@ -392,11 +398,12 @@ class SLIC(object):
                     self.imageArr[py][px][1] = cluster.a
                     self.imageArr[py][px][2] = cluster.b
 
-                indicateClusterCenter(cluster.x, cluster.y)
+                if hasCenters:
+                    indicateClusterCenter(cluster.x, cluster.y)
 
         io.imsave(path, color.lab2rgb(self.imageArr))
 
-    def execute(self, iterations, labWeight = 0.5, isBordered = True):
+    def execute(self, iterations, labWeight = 0.5, isBordered = True, hasCenters = True):
 
         """
         Perform SLIC on image given number of iterations and compactness value
@@ -405,6 +412,7 @@ class SLIC(object):
             iterations - (Int)   Number of iterations to perform SLIC
             labWeight -  (Float) Value between 0.0 and 1.0 to adjust effectiveness of LAB distance during labeling
             isBordered - (Bool)  Boolean value representing if output will have borders around clusters
+            hasCenters - (Bool)  Boolean value representing if output will have centers indicated
         """
 
         self.initializeClusters()
@@ -415,19 +423,20 @@ class SLIC(object):
             start = timeit.default_timer()
             self.labelPixels(labWeight)
             self.updateCenters()
-            self.enforceConnectivity()
-            name = 'test_M{m}_K{k}_loop{loop}.png'.format(loop = i, m = self.M, k = self.K)
             stop = timeit.default_timer()
             print("Runtime: ", stop - start)
-            self.saveImage(name, False)
+            self.saveImage('polar_M{m}_K{k}_loop{loop}.png'.format(loop = i, m = self.M, k = self.K), isBordered, hasCenters)
+        
+        self.enforceConnectivity()
+        self.saveImage('polar_M{m}_K{k}_final_loop.png'.format(m = self.M, k = self.K), isBordered, hasCenters)
 
     def __init__(self, filepath, K = 10000, M = 10):
 
         """
         Input:
-            Filepath: Name of file, or path to file
-            K: (Int) Number of desired superpixels
-            M: (Int) Compactness (scaling of distance)
+            Filepath - (String) Name of file, or path to file
+            K -        (Int) Number of desired superpixels
+            M -        (Int) Compactness (scaling of distance)
         """
 
         # Initialize number of superpixels (K), and compactness (M)
@@ -436,7 +445,6 @@ class SLIC(object):
 
         # Read in image from filepath as CIELAB color space ndarray 
         self.colorArr = color.rgb2lab(io.imread(filepath))
-        self.imageArr = np.copy(self.colorArr)
         
         # Set dimensions
         self.height = self.colorArr.shape[0]
@@ -455,6 +463,6 @@ class SLIC(object):
 
 if __name__ == '__main__':
 
-    processor = SLIC('natterjack1.jpg', 5000, 10)
-    processor.execute(5, 0.2, False)
+    processor = SLIC('natterjack1.jpg', 1000, 10)
+    processor.execute(5, 0.8, True, False)
     print("Hello World :^)")
